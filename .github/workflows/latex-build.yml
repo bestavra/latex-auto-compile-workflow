@@ -1,0 +1,70 @@
+name: Build LaTeX Document
+
+on: [push]
+
+jobs:
+  build_latex:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch two latest commits to allow for comparison
+          token: ${{ secrets.GITHUB_TOKEN }}  # Use the GITHUB_TOKEN to authenticate
+
+      # Step 2: Create docs folder if it does not exist
+      - name: Create docs folder
+        run: mkdir -p docs
+
+      # Step 3: List changed .tex files
+      - name: List changed LaTeX files
+        id: list-files
+        run: |
+          git fetch origin
+          git diff --name-only HEAD^ | grep '\.tex$' > changed-tex-files.txt || true
+          echo "Changed LaTeX files to compile:"
+          cat changed-tex-files.txt
+          echo "CHANGED_LATEX_FILES=$(cat changed-tex-files.txt | tr '\n' ' ')" >> $GITHUB_ENV
+
+      # Step 4: Compile each changed LaTeX file
+      - name: Compile LaTeX Files
+        if: env.CHANGED_LATEX_FILES != ''
+        uses: xu-cheng/latex-action@v3
+        with:
+          work_in_root_file_dir: true
+          root_file: |
+            ${{ env.CHANGED_LATEX_FILES }}
+
+      # Step 5: Move the rendered PDF to the docs folder
+      - name: Move PDFs to docs folder
+        if: env.CHANGED_LATEX_FILES != ''
+        run: |
+          for tex_file in ${{ env.CHANGED_LATEX_FILES }}; do
+            pdf_file="${tex_file%.tex}.pdf"
+            folder_name=$(basename "$(dirname "$tex_file")")
+            new_pdf_name="${folder_name}.pdf"
+            mv "$pdf_file" "docs/$new_pdf_name"
+            echo "Moved $pdf_file to docs/$new_pdf_name"
+          done
+
+      # Step 6: Commit and push the rendered PDFs
+      - name: Commit and Push PDFs
+        if: env.CHANGED_LATEX_FILES != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Authenticate with GitHub
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          
+          # Add all PDFs to the repository
+          git add docs/*.pdf
+          
+          # Commit changes with a message
+          git commit -m "Add rendered PDF(s) from LaTeX build" || echo "No changes to commit"
+          
+          # Push changes back to the repo
+          git push origin HEAD
