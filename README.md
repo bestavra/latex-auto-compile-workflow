@@ -30,3 +30,7 @@ The workflow is designed to work with the following folder structure:
    - The PDF will be placed in the `docs` folder, which will be automatically created if it does not exist.
 
 > **_NOTE_** The workflow only compiles LaTeX files that have been changed in the latest commit, ensuring faster builds by avoiding unnecessary recompilation.
+
+
+## TODO:
+- Omit comparison after the first push to the repository.
